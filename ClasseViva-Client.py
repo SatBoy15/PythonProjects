@@ -75,7 +75,9 @@ def getHome(user,passw):
     rpage.add_header('Host','web.spaggiari.eu')
     rpage.add_header('DNT','1')
     rpage.add_header('Content-Length','74')
-    page = urllib2.urlopen(rpage).read()
+    page = urllib2.urlopen(rpage)
+    headers = page.info()
+    page = page.read()
     azioni = []
     posazione = page.find('<a href=')
     while posazione > -1:
@@ -185,21 +187,121 @@ def getAgenda(user,cookie):
     for i in lista:
         print i['autore_desc']+' - '+i['start'].split(' ')[0]+' - '+i['nota_2']
 
+def getVoti(user,cookie):
+    import urllib2
+    url = baseurl+'cvv/app/default/genitori_voti.php'
+    rpage = urllib2.Request(url)
+    rpage.add_header('User-Agent','Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:37.0) Gecko/20100101 Firefox/37.0')
+    rpage.add_header('Cookie','PHPSESSID='+cookie+'; weblogin='+user+'; LAST_REQUESTED_TARGET=cvv')
+    rpage.add_header('Referer','https://web.spaggiari.eu/home/app/default/menu_webinfoschool_studenti.php?custcode=')
+    page = urllib2.urlopen(rpage).read()
+    materie = []
+    posmateria = page.find('<td width="350')
+    while posmateria>-1:
+        materia = page[page.find('>',posmateria+1)+1:page.find('&nbsp',posmateria+1)]
+        while True:
+            if materia[-1] == '	':
+                materia = materia.replace('	','')
+            else:
+                break
+            
+        materie.append(materia+'@'+str(page.find('>',posmateria+1)+1))
+        posmateria = page.find('<td width="350',posmateria+1)
+    posclass = page.find('<span  class="')
+    voti = []
+    while posclass>-1:
+        posvototype = page.find('cella_div',posclass+1)
+        posvoto1 = page.find('p align=',posvototype+1)
+        datavoto = page[page.find('data">',posclass+1)+6:page.find('</span',posclass+1)]
+        voto = page[page.find('">',posvoto1+1)+2:page.find('</p',posvoto1+1)]
+        vototype = page[page.find('f_reg_',posvototype+1)+6:page.find('"',posvototype+1)].split('_')[1]
+        for i in materie:
+            if posvoto1>int(i.split('@')[1]):
+                materia = i.split('@')[0]
+        if datavoto.find('/')>-1:
+            voti.append(str(materia)+'@'+datavoto+'@'+voto+'@'+vototype)
+        posclass = page.find('<span  class="',posclass+1)
+    
+    for i in voti:
+        tempvoto = i.split('@')
+        print tempvoto[0]+' - '+tempvoto[1]+' - '+tempvoto[2]+' - '+tempvoto[3]
+        
+
+def getCircolari(user,cookie,codstud):
+    import urllib2
+    url = baseurl+'sif/app/default/bacheca_utente.php'
+    rpage = urllib2.Request(url)
+    rpage.add_header('User-Agent','Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:37.0) Gecko/20100101 Firefox/37.0')
+    rpage.add_header('Cookie','PHPSESSID='+cookie+'; weblogin='+user+'; LAST_REQUESTED_TARGET=cvv')
+    rpage.add_header('Referer','https://web.spaggiari.eu/home/app/default/menu_webinfoschool_studenti.php?custcode=')
+    page = urllib2.urlopen(rpage).read()
+    poscirc1 = page.find('<td colspan="32" align="left" style="padding-left:10px;" class="bb_grey">')
+    cont = 1
+    circolari = []
+    while poscirc1>-1:
+        title = page[page.find('_14',poscirc1+1)+5:page.find('</div',poscirc1+1)].replace('\n','')
+        postype = page.find('_10',poscirc1+1)+6
+        posdata = page.find('12">',poscirc1+1)+4
+        poscomid = page.find('comunicazione_id',poscirc1+1)
+        tipo = page[postype:page.find('</div',postype+1)].replace('\n','').replace('n_pubbl hidden">','')
+        data = page[posdata:page.find('</div',posdata+1)].replace('\n','')
+        comunicazione = page[poscomid+18:page.find('"',poscomid+18)].replace('\n','')
+        circolari.append(title+'@'+data+'@'+tipo+'@'+comunicazione)
+        poscirc1 = page.find('<td colspan="32" align="left" style="padding-left:10px;" class="bb_grey">',poscirc1+1)
+    for i in circolari:
+        mini = i.split('@')
+        print str(cont)+' - '+mini[0]+' - '+mini[2]+'\n'
+        cont += 1
+    while True:
+        print '\nScrivi il numero della circolare corrispondente:'
+        scelta = input('---->')
+        if scelta>cont-1:
+            print '\nIl numero inserito non va bene, riprova...'
+        if scelta<0:
+            print '\nIl numero inserito non va bene, riprova...'
+        if 0<scelta<=cont-1:
+            break
+    idcircolare = circolari[scelta-1].split('@')[-1]
+    nomecirc = circolari[scelta-1].split('@')[0].replace('\n','')
+    import urllib
+    print 'Sto Caricando il link ...\n'
+    urldownload=url+'?action=file_download&com_id=%s' % idcircolare
+    rpdf = urllib2.Request(urldownload)
+    rpdf.add_header('User-Agent','Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:37.0) Gecko/20100101 Firefox/37.0')
+    rpdf.add_header('Cookie','PHPSESSID='+cookie+'; weblogin='+user+'; LAST_REQUESTED_TARGET=cvv')
+    rpdf.add_header('Referer',url)
+    pdfread = urllib2.urlopen(rpdf)
+    print 'Scrivo su File...\n'
+    pdffile = file('circolare_'+codstud+'_'+str(scelta)+'.pdf','wb')
+    pdffile.write(pdfread.read())
+    pdfread.close()
+    pdffile.close()
+    print 'File Scritto.'
+    
+
+def getAssenze(user,cookie):
+    print 'Aspetto di fare un\' assenza per implementare questo modulo. hahaha...\n'
+
 def Registro(user,home):
     while True:
-        print "1 - Visualizza le lezioni\n2 - Guarda l'Agenda\n"
-        azione = input('\nScegli il numero dell\' azione da fare:\n---->')
-        print '\n'
+        print "1 - Visualizza le lezioni\n\n2 - Guarda l'Agenda\n\n3 - Guarda i Voti\n\n4 - Guarda le Circolari\n\n5 - Guarda le Assenze\n"
+        azione = input('\nScegli il numero dell\' azione da fare:\n\n---->')
         if azione == 1:
             getLezioni(user,home[2])
         elif azione == 2:
             getAgenda(user,home[2])
+        elif azione == 3:
+            getVoti(user,home[2])
+        elif azione == 4:
+            getCircolari(user,home[2],home[1]['username'])
+        elif azione == 5:
+            getAssenze(user,home[2])
         else:
             print '\nNon hai scelto nessuna azione, Arrivederci!'
             break
-        voglia = input('\nVuoi ancora usare il programma? (1:Si,0:No)\n---->')
+        voglia = input('\nVuoi ancora usare il programma? (1:Si,0:No)\n\n---->')
         if voglia == 0:
-            print 'Arrivederci'
+            print 'Arrivederci!'
             break
         elif voglia == 1:
             print '\nOK, scegli di nuovo un\' azione:'
@@ -208,5 +310,7 @@ def Registro(user,home):
             break
     
 a = getHome(user,passw)
-print 'Benvenuto/a '+a[1]['nome']+', '+a[1]['username']+'\nEcco i siti che puoi visitare:\n'
+
+print 'Benvenuto/a '+a[1]['nome']+', '+a[1]['username']+'\n\nEcco le azioni che puoi fare:\n\n'
+
 Registro(user,a)
